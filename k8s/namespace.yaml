@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudretail
+  labels:
+    name: cloudretail
+    environment: production

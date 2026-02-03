@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cloudretail
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - consul-deployment.yaml
+  - redis-deployment.yaml
+  - api-gateway-deployment.yaml
+  - user-service-deployment.yaml
+  - product-service-deployment.yaml
+  - order-service-deployment.yaml
+  - inventory-service-deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - hpa.yaml
+
+# Common labels for all resources
+commonLabels:
+  app: cloudretail
+  environment: production
+
+# Replacements for placeholders
+replacements:
+  - source:
+      kind: ConfigMap
+      name: cloudretail-config
+      fieldPath: data.AWS_REGION
+    targets:
+      - select:
+          kind: Deployment
+        fieldPaths:
+          - metadata.annotations.[kubernetes.io/region]
+        options:
+          create: true
+    # Note: This is a placeholder for region annotation replacement
+    # In practice, you may need to use a different approach
+
+

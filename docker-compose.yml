@@ -34,13 +34,13 @@ services:
     networks:
       - cloudretail-network
 
-  # Databases
+  # Local Database (use when not connecting to AWS RDS)
   postgres:
     image: postgres:14
     environment:
-      - POSTGRES_USER=cloudretail
-      - POSTGRES_PASSWORD=cloudretail123
-      - POSTGRES_DB=cloudretail
+      - POSTGRES_USER=${DB_USER:-cloudretail}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-cloudretail123}
+      - POSTGRES_DB=${DB_NAME:-cloudretail}
     ports:
       - "5432:5432"
     volumes:
@@ -70,10 +70,14 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - PORT=3001
-      - DB_HOST=postgres
+      - PORT=${USER_SERVICE_PORT:-3001}
+      - DB_HOST=${DB_HOST:-cloud-retail.czyg604m8g8n.ap-south-1.rds.amazonaws.com}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-postgres}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - JWT_SECRET=${JWT_SECRET}
-      - RABBITMQ_URL=amqp://rabbitmq
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://rabbitmq}
     depends_on:
       - postgres
       - rabbitmq
@@ -86,9 +90,15 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - PORT=3002
-      - DB_HOST=postgres
-      - RABBITMQ_URL=amqp://rabbitmq
+      - PORT=${PRODUCT_SERVICE_PORT:-3002}
+      - DB_HOST=${DB_HOST:-cloud-retail.czyg604m8g8n.ap-south-1.rds.amazonaws.com}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-postgres}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://rabbitmq}
     depends_on:
       - postgres
       - rabbitmq
@@ -101,11 +111,17 @@ services:
     ports:
       - "3003:3003"
     environment:
-      - PORT=3003
-      - DB_HOST=postgres
-      - RABBITMQ_URL=amqp://rabbitmq
-      - INVENTORY_SERVICE_URL=http://inventory-service:3004
-      - USER_SERVICE_URL=http://user-service:3001
+      - PORT=${ORDER_SERVICE_PORT:-3003}
+      - DB_HOST=${DB_HOST:-cloud-retail.czyg604m8g8n.ap-south-1.rds.amazonaws.com}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-postgres}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://rabbitmq}
+      - INVENTORY_SERVICE_URL=${INVENTORY_SERVICE_URL:-http://inventory-service:3004}
+      - USER_SERVICE_URL=${USER_SERVICE_URL:-http://user-service:3001}
     depends_on:
       - postgres
       - rabbitmq
@@ -118,12 +134,13 @@ services:
     ports:
       - "3004:3004"
     environment:
-      - PORT=3004
-      - DB_HOST=postgres
-      - DB_NAME=cloudretail
-      - DB_USER=cloudretail
-      - DB_PASSWORD=cloudretail123
-      - RABBITMQ_URL=amqp://rabbitmq
+      - PORT=${INVENTORY_SERVICE_PORT:-3004}
+      - DB_HOST=${DB_HOST:-cloud-retail.czyg604m8g8n.ap-south-1.rds.amazonaws.com}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-postgres}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://rabbitmq}
     depends_on:
       - postgres
       - rabbitmq

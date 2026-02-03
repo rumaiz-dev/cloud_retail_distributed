@@ -1,64 +1,214 @@
 version: '3.8'
 
 services:
-  # AWS CloudWatch Logs Driver
+  # API Gateway - AWS ECR with CloudWatch Logs
   api-gateway:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cloudretail-api-gateway:latest
     logging:
       driver: awslogs
       options:
-        awslogs-group: cloudretail
+        awslogs-group: cloudretail-api-gateway
         awslogs-region: ${AWS_REGION}
         awslogs-stream-prefix: api-gateway
-
-  # AWS RDS PostgreSQL
-  postgres:
-    image: postgres:14
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
+      - NODE_ENV=production
+      - AWS_REGION=${AWS_REGION}
+      - AWS_SECRETS_MANAGER_SECRET_ID=${AWS_SECRETS_MANAGER_SECRET_ID}
+      # Database configuration via Secrets Manager
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      # DB_PASSWORD loaded from Secrets Manager at runtime
+      # Redis configuration
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      # JWT Secret from Secrets Manager
+      - JWT_SECRET=${JWT_SECRET}
+      # Service Discovery
+      - SERVICE_REGISTRY=http://consul:8500
+    depends_on:
+      - consul
+    networks:
+      - cloudretail-network
 
-  # AWS ElastiCache Redis (simulated)
-  redis:
-    image: redis:7-alpine
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
+  # User Service - AWS ECR
+  user-service:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cloudretail-user-service:latest
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: cloudretail-user-service
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: user-service
+    environment:
+      - NODE_ENV=production
+      - AWS_REGION=${AWS_REGION}
+      - AWS_SECRETS_MANAGER_SECRET_ID=${AWS_SECRETS_MANAGER_SECRET_ID}
+      - PORT=3001
+      # Database configuration via Secrets Manager
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      # DB_PASSWORD loaded from Secrets Manager at runtime
+      - JWT_SECRET=${JWT_SECRET}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      # Consul Service Discovery
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - consul
+    networks:
+      - cloudretail-network
 
-  # AWS MQ RabbitMQ (simulated)
-  rabbitmq:
-    image: rabbitmq:3-management
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
+  # Product Service - AWS ECR
+  product-service:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cloudretail-product-service:latest
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: cloudretail-product-service
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: product-service
+    environment:
+      - NODE_ENV=production
+      - AWS_REGION=${AWS_REGION}
+      - AWS_SECRETS_MANAGER_SECRET_ID=${AWS_SECRETS_MANAGER_SECRET_ID}
+      - PORT=3002
+      # Database configuration via Secrets Manager
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      # DB_PASSWORD loaded from Secrets Manager at runtime
+      # Redis configuration (ElastiCache)
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      # Consul Service Discovery
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - consul
+    networks:
+      - cloudretail-network
 
-  # AWS ECS Service Discovery
+  # Order Service - AWS ECR
+  order-service:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cloudretail-order-service:latest
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: cloudretail-order-service
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: order-service
+    environment:
+      - NODE_ENV=production
+      - AWS_REGION=${AWS_REGION}
+      - AWS_SECRETS_MANAGER_SECRET_ID=${AWS_SECRETS_MANAGER_SECRET_ID}
+      - PORT=3003
+      # Database configuration via Secrets Manager
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      # DB_PASSWORD loaded from Secrets Manager at runtime
+      # Redis configuration (ElastiCache)
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      # Service URLs
+      - INVENTORY_SERVICE_URL=${INVENTORY_SERVICE_URL}
+      - USER_SERVICE_URL=${USER_SERVICE_URL}
+      # Consul Service Discovery
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - consul
+    networks:
+      - cloudretail-network
+
+  # Inventory Service - AWS ECR
+  inventory-service:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cloudretail-inventory-service:latest
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: cloudretail-inventory-service
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: inventory-service
+    environment:
+      - NODE_ENV=production
+      - AWS_REGION=${AWS_REGION}
+      - AWS_SECRETS_MANAGER_SECRET_ID=${AWS_SECRETS_MANAGER_SECRET_ID}
+      - PORT=3004
+      # Database configuration via Secrets Manager
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      # DB_PASSWORD loaded from Secrets Manager at runtime
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      # Consul Service Discovery
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - consul
+    networks:
+      - cloudretail-network
+
+  # AWS ECS Service Discovery (Consul)
   consul:
-    image: consul:latest
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
+    image: hashicorp/consul:1.15
+    ports:
+      - "8500:8500"
+    environment:
+      - CONSUL_CLIENT_INTENTION=allow
+      - CONSUL_BIND_INTERFACE=eth0
+    networks:
+      - cloudretail-network
 
-  # AWS CloudWatch Agent
+  # AWS Secrets Manager Sidecar Container (for production)
+  # Note: In production, use AWS Secrets Manager integration in ECS task definition
+  # This is a placeholder for local development simulation
+  secrets-manager-sidecar:
+    image: amazon/aws-cli:2.15
+    command: >
+      sh -c "echo 'AWS Secrets Manager integration configured in ECS Task Definition'
+      && echo 'Secrets loaded via AWS SDK in application'"
+    environment:
+      - AWS_REGION=${AWS_REGION}
+      - AWS_DEFAULT_REGION=${AWS_REGION}
+    networks:
+      - cloudretail-network
+
+  # AWS CloudWatch Agent for metrics
   cloudwatch-agent:
     image: amazon/cloudwatch-agent:latest
     volumes:
-      - ./cloudwatch-config.json:/opt/aws/amazon-cloudwatch-agent/bin/config.json
+      - ./monitoring/cloudwatch-config.json:/opt/aws/amazon-cloudwatch-agent/bin/config.json
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/proc
+      - /dev/disk:/dev/disk
     command: /opt/aws/amazon-cloudwatch-agent/bin/start-amazon-cloudwatch-agent
+    environment:
+      - AWS_REGION=${AWS_REGION}
+      - CW_CONFIG_CONTENT=/opt/aws/amazon-cloudwatch-agent/bin/config.json
+    networks:
+      - cloudretail-network
 
 volumes:
   postgres-data:
+    driver: aws-ebs
   redis-data:
+    driver: aws-ebs
 
 networks:
   cloudretail-network:
     driver: overlay
     attachable: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.0.0.0/16

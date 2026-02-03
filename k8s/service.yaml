@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: cloudretail
+  labels:
+    app: api-gateway
+spec:
+  selector:
+    app: api-gateway
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: cloudretail
+  labels:
+    app: user-service
+spec:
+  selector:
+    app: user-service
+  ports:
+  - port: 80
+    targetPort: 3001
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: cloudretail
+  labels:
+    app: product-service
+spec:
+  selector:
+    app: product-service
+  ports:
+  - port: 80
+    targetPort: 3002
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: cloudretail
+  labels:
+    app: order-service
+spec:
+  selector:
+    app: order-service
+  ports:
+  - port: 80
+    targetPort: 3003
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-service
+  namespace: cloudretail
+  labels:
+    app: inventory-service
+spec:
+  selector:
+    app: inventory-service
+  ports:
+  - port: 80
+    targetPort: 3004
+    protocol: TCP
+    name: http
+  type: ClusterIP

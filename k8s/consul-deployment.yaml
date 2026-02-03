@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consul
+  namespace: cloudretail
+  labels:
+    app: consul
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consul
+  template:
+    metadata:
+      labels:
+        app: consul
+    spec:
+      containers:
+      - name: consul
+        image: consul:1.15
+        ports:
+        - containerPort: 8500
+          name: http
+        - containerPort: 8301
+          name: serf-lan
+        args:
+        - "agent"
+        - "-bootstrap-expect=1"
+        - "-server"
+        - "-ui"
+        - "-data-dir=/consul/data"
+        - "-client=0.0.0.0"
+        - "-bind=0.0.0.0"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consul
+  namespace: cloudretail
+  labels:
+    app: consul
+spec:
+  selector:
+    app: consul
+  ports:
+  - name: http
+    port: 8500
+    targetPort: 8500
+  - name: serf-lan
+    port: 8301
+    targetPort: 8301
+  type: ClusterIP

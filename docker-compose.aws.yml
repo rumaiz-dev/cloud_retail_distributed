@@ -1,0 +1,166 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET}
+      - SERVICE_REGISTRY=http://consul:8500
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    depends_on:
+      - consul
+      - rabbitmq
+    networks:
+      - cloudretail-network
+
+  # Service Registry (Consul)
+  consul:
+    image: hashicorp/consul:1.15
+    ports:
+      - "8500:8500"
+    networks:
+      - cloudretail-network
+
+  # Message Broker (RabbitMQ)
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-admin123}
+    networks:
+      - cloudretail-network
+
+  # User Service
+  user-service:
+    build: ./user-service
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=${USER_SERVICE_PORT:-3001}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - consul
+      - rabbitmq
+    networks:
+      - cloudretail-network
+
+  # Product Service
+  product-service:
+    build: ./product-service
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=${PRODUCT_SERVICE_PORT:-3002}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - consul
+      - rabbitmq
+    networks:
+      - cloudretail-network
+
+  # Order Service
+  order-service:
+    build: ./order-service
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+      - PORT=${ORDER_SERVICE_PORT:-3003}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - INVENTORY_SERVICE_URL=${INVENTORY_SERVICE_URL:-http://inventory-service:3004}
+      - USER_SERVICE_URL=${USER_SERVICE_URL:-http://user-service:3001}
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - consul
+      - rabbitmq
+    networks:
+      - cloudretail-network
+
+  # Inventory Service
+  inventory-service:
+    build: ./inventory-service
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=production
+      - PORT=${INVENTORY_SERVICE_PORT:-3004}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+    depends_on:
+      - consul
+      - rabbitmq
+    networks:
+      - cloudretail-network
+
+  # Monitoring (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - cloudretail-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "6831:6831/udp"
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=9411
+    networks:
+      - cloudretail-network
+
+networks:
+  cloudretail-network:
+    driver: bridge

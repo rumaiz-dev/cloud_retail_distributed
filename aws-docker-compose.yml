@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # AWS CloudWatch Logs Driver
+  api-gateway:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/cloudretail-api-gateway:latest
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: cloudretail
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: api-gateway
+
+  # AWS RDS PostgreSQL
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  # AWS ElastiCache Redis (simulated)
+  redis:
+    image: redis:7-alpine
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  # AWS MQ RabbitMQ (simulated)
+  rabbitmq:
+    image: rabbitmq:3-management
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  # AWS ECS Service Discovery
+  consul:
+    image: consul:latest
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  # AWS CloudWatch Agent
+  cloudwatch-agent:
+    image: amazon/cloudwatch-agent:latest
+    volumes:
+      - ./cloudwatch-config.json:/opt/aws/amazon-cloudwatch-agent/bin/config.json
+    command: /opt/aws/amazon-cloudwatch-agent/bin/start-amazon-cloudwatch-agent
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  cloudretail-network:
+    driver: overlay
+    attachable: true

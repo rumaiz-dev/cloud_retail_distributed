@@ -1,0 +1,181 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - JWT_SECRET=${JWT_SECRET}
+      - SERVICE_REGISTRY=http://consul:8500
+    depends_on:
+      - consul
+      - rabbitmq
+    networks:
+      - cloudretail-network
+
+  # Service Registry
+  consul:
+    image: consul:latest
+    ports:
+      - "8500:8500"
+    networks:
+      - cloudretail-network
+
+  # Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin123
+    networks:
+      - cloudretail-network
+
+  # Databases
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_USER=cloudretail
+      - POSTGRES_PASSWORD=cloudretail123
+      - POSTGRES_DB=cloudretail
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - cloudretail-network
+
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - cloudretail-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - cloudretail-network
+
+  # Microservices
+  user-service:
+    build: ./user-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DB_HOST=postgres
+      - JWT_SECRET=${JWT_SECRET}
+      - RABBITMQ_URL=amqp://rabbitmq
+    depends_on:
+      - postgres
+      - rabbitmq
+      - consul
+    networks:
+      - cloudretail-network
+
+  product-service:
+    build: ./product-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - DB_HOST=mongodb
+      - RABBITMQ_URL=amqp://rabbitmq
+    depends_on:
+      - mongodb
+      - rabbitmq
+      - consul
+    networks:
+      - cloudretail-network
+
+  order-service:
+    build: ./order-service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - DB_HOST=postgres
+      - RABBITMQ_URL=amqp://rabbitmq
+      - INVENTORY_SERVICE_URL=http://inventory-service:3004
+      - USER_SERVICE_URL=http://user-service:3001
+    depends_on:
+      - postgres
+      - rabbitmq
+      - consul
+    networks:
+      - cloudretail-network
+
+  inventory-service:
+    build: ./inventory-service
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - REDIS_HOST=redis
+      - RABBITMQ_URL=amqp://rabbitmq
+    depends_on:
+      - redis
+      - rabbitmq
+      - consul
+    networks:
+      - cloudretail-network
+
+  # Monitoring
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3005:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - cloudretail-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - cloudretail-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "6831:6831/udp"
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=9411
+    networks:
+      - cloudretail-network
+
+  # Load Testing
+  k6:
+    image: grafana/k6:latest
+    volumes:
+      - ./load-tests:/scripts
+    networks:
+      - cloudretail-network
+
+volumes:
+  postgres-data:
+  mongo-data:
+  grafana-data:
+  prometheus-data:
+
+networks:
+  cloudretail-network:
+    driver: bridge

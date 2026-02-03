@@ -11,10 +11,9 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/healthcheck-path: /health
     alb.ingress.kubernetes.io/healthcheck-port: "3000"
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: "true"
-    # AWS Certificate Manager ARN for HTTPS (replace with your ACM certificate ARN)
-    alb.ingress.kubernetes.io/certificate-arn: "<ACM_CERTIFICATE_ARN>"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    # alb.ingress.kubernetes.io/ssl-redirect: "true"
+    # alb.ingress.kubernetes.io/certificate-arn: "<ACM_CERTIFICATE_ARN>"
 spec:
   rules:
   - http:

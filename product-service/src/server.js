@@ -1,5 +1,5 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const { Sequelize, DataTypes } = require('sequelize');
 const amqp = require('amqplib');
 const winston = require('winston');
 const redis = require('redis');
@@ -24,10 +24,67 @@ const logger = winston.createLogger({
   ]
 });
 
-// MongoDB connection
-mongoose.connect(`mongodb://${process.env.DB_HOST || 'mongodb'}:27017/products`, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
+// PostgreSQL connection via Sequelize
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'cloudretail',
+  process.env.DB_USER || 'cloudretail',
+  process.env.DB_PASSWORD || 'cloudretail123',
+  {
+    host: process.env.DB_HOST || 'postgres',
+    port: process.env.DB_PORT || 5432,
+    dialect: 'postgres',
+    logging: false
+  }
+);
+
+// Product Model
+const Product = sequelize.define('Product', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  sku: {
+    type: DataTypes.STRING,
+    unique: true,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: {
+    type: DataTypes.TEXT
+  },
+  price: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false
+  },
+  category: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  tags: {
+    type: DataTypes.ARRAY(DataTypes.STRING)
+  },
+  stock: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0
+  },
+  images: {
+    type: DataTypes.ARRAY(DataTypes.STRING)
+  },
+  specifications: {
+    type: DataTypes.JSONB
+  },
+  attributes: {
+    type: DataTypes.JSONB
+  },
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  }
 });
 
 // Redis client for caching
@@ -37,51 +94,6 @@ const redisClient = redis.createClient({
 
 redisClient.on('error', (err) => logger.error('Redis error:', err));
 redisClient.connect();
-
-// Product Schema
-const productSchema = new mongoose.Schema({
-  sku: {
-    type: String,
-    unique: true,
-    required: true
-  },
-  name: {
-    type: String,
-    required: true
-  },
-  description: String,
-  price: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  category: {
-    type: String,
-    required: true
-  },
-  tags: [String],
-  stock: {
-    type: Number,
-    required: true,
-    default: 0
-  },
-  images: [String],
-  specifications: Map,
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-const Product = mongoose.model('Product', productSchema);
 
 // RabbitMQ
 let channel = null;
@@ -109,7 +121,8 @@ const createProductSchema = Joi.object({
   tags: Joi.array().items(Joi.string()),
   stock: Joi.number().min(0).required(),
   images: Joi.array().items(Joi.string()),
-  specifications: Joi.object()
+  specifications: Joi.object(),
+  attributes: Joi.object()
 });
 
 // Middleware
@@ -125,18 +138,28 @@ app.use('/api/', limiter);
 
 // Health check
 app.get('/health', async (req, res) => {
-  const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  const redisStatus = redisClient.isOpen ? 'connected' : 'disconnected';
-  
-  res.json({
-    status: 'healthy',
-    service: 'product-service',
-    timestamp: new Date().toISOString(),
-    databases: {
-      mongodb: mongoStatus,
-      redis: redisStatus
-    }
-  });
+  try {
+    await sequelize.authenticate();
+    const postgresStatus = 'connected';
+    const redisStatus = redisClient.isOpen ? 'connected' : 'disconnected';
+    
+    res.json({
+      status: 'healthy',
+      service: 'product-service',
+      timestamp: new Date().toISOString(),
+      databases: {
+        postgres: postgresStatus,
+        redis: redisStatus
+      }
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      service: 'product-service',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
 // Get all products with caching
@@ -151,16 +174,18 @@ app.get('/', async (req, res) => {
     }
 
     const { category, page = 1, limit = 20, sort = 'createdAt' } = req.query;
-    const query = { isActive: true };
+    const where = { isActive: true };
     
     if (category) {
-      query.category = category;
+      where.category = category;
     }
 
-    const products = await Product.find(query)
-      .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+    const products = await Product.findAll({
+      where,
+      order: [[sort, 'ASC']],
+      offset: (page - 1) * limit,
+      limit: parseInt(limit)
+    });
 
     // Cache for 5 minutes
     await redisClient.setEx(cacheKey, 300, JSON.stringify(products));
@@ -182,7 +207,7 @@ app.get('/:id', async (req, res) => {
       return res.json(JSON.parse(cachedData));
     }
 
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findByPk(req.params.id);
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
@@ -203,8 +228,7 @@ app.post('/', async (req, res) => {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const product = new Product(req.body);
-    await product.save();
+    const product = await Product.create(req.body);
 
     // Clear cache
     await redisClient.del('products:all');
@@ -213,7 +237,7 @@ app.post('/', async (req, res) => {
     if (channel) {
       channel.publish('product-events', 'product.created', Buffer.from(JSON.stringify({
         event: 'PRODUCT_CREATED',
-        productId: product._id,
+        productId: product.id,
         sku: product.sku,
         name: product.name,
         price: product.price,
@@ -233,15 +257,13 @@ app.post('/', async (req, res) => {
 // Update product
 app.put('/:id', async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, updatedAt: Date.now() },
-      { new: true, runValidators: true }
-    );
-
+    const product = await Product.findByPk(req.params.id);
+    
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
+
+    await product.update(req.body);
 
     // Clear cache
     await redisClient.del(`product:${req.params.id}`);
@@ -251,7 +273,7 @@ app.put('/:id', async (req, res) => {
     if (channel) {
       channel.publish('product-events', 'product.updated', Buffer.from(JSON.stringify({
         event: 'PRODUCT_UPDATED',
-        productId: product._id,
+        productId: product.id,
         sku: product.sku,
         name: product.name,
         price: product.price,
@@ -269,15 +291,13 @@ app.put('/:id', async (req, res) => {
 // Delete product (soft delete)
 app.delete('/:id', async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      { isActive: false, updatedAt: Date.now() },
-      { new: true }
-    );
-
+    const product = await Product.findByPk(req.params.id);
+    
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
+
+    await product.update({ isActive: false });
 
     // Clear cache
     await redisClient.del(`product:${req.params.id}`);
@@ -287,7 +307,7 @@ app.delete('/:id', async (req, res) => {
     if (channel) {
       channel.publish('product-events', 'product.deleted', Buffer.from(JSON.stringify({
         event: 'PRODUCT_DELETED',
-        productId: product._id,
+        productId: product.id,
         sku: product.sku,
         timestamp: new Date().toISOString()
       })));
@@ -304,14 +324,17 @@ app.delete('/:id', async (req, res) => {
 app.get('/search/:query', async (req, res) => {
   try {
     const { query } = req.params;
-    const products = await Product.find({
-      $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } },
-        { tags: { $in: [new RegExp(query, 'i')] } }
-      ],
-      isActive: true
-    }).limit(20);
+    const products = await Product.findAll({
+      where: {
+        [Sequelize.Op.or]: [
+          { name: { [Sequelize.Op.iLike]: `%${query}%` } },
+          { description: { [Sequelize.Op.iLike]: `%${query}%` } },
+          { tags: { [Sequelize.Op.contains]: [query] } }
+        ],
+        isActive: true
+      },
+      limit: 20
+    });
 
     res.json(products);
   } catch (error) {
@@ -341,9 +364,11 @@ const registerWithConsul = async () => {
 // Initialize
 const init = async () => {
   try {
-    await mongoose.connection.once('open', () => {
-      logger.info('MongoDB connected');
-    });
+    await sequelize.authenticate();
+    logger.info('Product Service: PostgreSQL connected');
+
+    await sequelize.sync();
+    logger.info('Product model synchronized');
 
     await connectRabbitMQ();
 
@@ -361,7 +386,7 @@ init();
 
 process.on('SIGTERM', async () => {
   logger.info('Shutting down product service...');
-  await mongoose.connection.close();
+  await sequelize.close();
   await redisClient.quit();
   if (channel) {
     await channel.close();

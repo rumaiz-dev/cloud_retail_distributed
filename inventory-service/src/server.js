@@ -1,5 +1,5 @@
 const express = require('express');
-const redis = require('redis');
+const { Sequelize, DataTypes } = require('sequelize');
 const amqplib = require('amqplib');
 const winston = require('winston');
 const Joi = require('joi');
@@ -23,9 +23,64 @@ const logger = winston.createLogger({
   ]
 });
 
-// Redis client
-const redisClient = redis.createClient({
-  url: `redis://${process.env.REDIS_HOST || 'redis'}:6379`
+// Sequelize connection
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'cloudretail',
+  process.env.DB_USER || 'cloudretail',
+  process.env.DB_PASSWORD || 'cloudretail123',
+  {
+    host: process.env.DB_HOST || 'postgres',
+    port: process.env.DB_PORT || 5432,
+    dialect: 'postgres',
+    logging: false
+  }
+);
+
+// Inventory model
+const Inventory = sequelize.define('Inventory', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  sku: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  productId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    field: 'product_id'
+  },
+  warehouseId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    field: 'warehouse_id'
+  },
+  quantity: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  reservedQuantity: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    field: 'reserved_quantity'
+  },
+  minimumStock: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    field: 'minimum_stock'
+  },
+  location: {
+    type: DataTypes.STRING
+  },
+  lastRestocked: {
+    type: DataTypes.DATE,
+    field: 'last_restocked'
+  }
+}, {
+  tableName: 'inventory',
+  timestamps: true
 });
 
 // RabbitMQ
@@ -35,9 +90,12 @@ let inventoryQueue = null;
 // Initialize connections
 const initConnections = async () => {
   try {
-    // Connect to Redis
-    await redisClient.connect();
-    logger.info('Connected to Redis');
+    // Connect to PostgreSQL
+    await sequelize.authenticate();
+    logger.info('Inventory Service: PostgreSQL connected');
+
+    // Sync database
+    await sequelize.sync();
 
     // Connect to RabbitMQ
     const connection = await amqplib.connect(process.env.RABBITMQ_URL || 'amqp://rabbitmq');
@@ -72,7 +130,7 @@ app.use(express.json());
 
 // Health check
 app.get('/health', async (req, res) => {
-  const redisStatus = redisClient.isOpen ? 'connected' : 'disconnected';
+  const dbStatus = sequelize ? 'connected' : 'disconnected';
   const rabbitmqStatus = channel ? 'connected' : 'disconnected';
   
   res.json({
@@ -80,7 +138,7 @@ app.get('/health', async (req, res) => {
     service: 'inventory-service',
     timestamp: new Date().toISOString(),
     connections: {
-      redis: redisStatus,
+      postgres: dbStatus,
       rabbitmq: rabbitmqStatus
     }
   });
@@ -89,19 +147,49 @@ app.get('/health', async (req, res) => {
 // Get stock for product
 app.get('/:sku', async (req, res) => {
   try {
-    const stock = await redisClient.hGet('inventory', req.params.sku);
-    if (!stock) {
+    const inventory = await Inventory.findOne({ where: { sku: req.params.sku } });
+    if (!inventory) {
       return res.status(404).json({ error: 'Product not found in inventory' });
     }
     
     res.json({
       sku: req.params.sku,
-      stock: parseInt(stock),
+      productId: inventory.productId,
+      warehouseId: inventory.warehouseId,
+      quantity: inventory.quantity,
+      reservedQuantity: inventory.reservedQuantity,
+      minimumStock: inventory.minimumStock,
+      location: inventory.location,
+      lastRestocked: inventory.lastRestocked,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     logger.error('Get stock error:', error);
     res.status(500).json({ error: 'Failed to get stock' });
+  }
+});
+
+// Get all inventory
+app.get('/', async (req, res) => {
+  try {
+    const inventory = await Inventory.findAll();
+    res.json({
+      count: inventory.length,
+      items: inventory.map(inv => ({
+        sku: inv.sku,
+        productId: inv.productId,
+        warehouseId: inv.warehouseId,
+        quantity: inv.quantity,
+        reservedQuantity: inv.reservedQuantity,
+        minimumStock: inv.minimumStock,
+        location: inv.location,
+        lastRestocked: inv.lastRestocked
+      })),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Get all inventory error:', error);
+    res.status(500).json({ error: 'Failed to get inventory' });
   }
 });
 
@@ -116,23 +204,38 @@ app.post('/update', async (req, res) => {
     const { sku, quantity, operation } = req.body;
     let newStock;
 
-    switch (operation) {
-      case 'increment':
-        newStock = await redisClient.hIncrBy('inventory', sku, quantity);
-        break;
-      case 'decrement':
-        newStock = await redisClient.hIncrBy('inventory', sku, -quantity);
-        if (newStock < 0) {
-          // Rollback
-          await redisClient.hIncrBy('inventory', sku, quantity);
-          return res.status(400).json({ error: 'Insufficient stock' });
-        }
-        break;
-      case 'set':
-        await redisClient.hSet('inventory', sku, quantity);
-        newStock = quantity;
-        break;
-    }
+    // Use transaction for data integrity
+    const result = await sequelize.transaction(async (t) => {
+      let inventory = await Inventory.findOne({ where: { sku }, transaction: t });
+
+      if (!inventory) {
+        // Create new inventory record if it doesn't exist
+        inventory = await Inventory.create({
+          sku,
+          quantity: operation === 'set' ? quantity : 0
+        }, { transaction: t });
+      }
+
+      switch (operation) {
+        case 'increment':
+          inventory.quantity += quantity;
+          break;
+        case 'decrement':
+          inventory.quantity -= quantity;
+          if (inventory.quantity < 0) {
+            throw new Error('Insufficient stock');
+          }
+          break;
+        case 'set':
+          inventory.quantity = quantity;
+          break;
+      }
+
+      await inventory.save({ transaction: t });
+      return inventory.quantity;
+    });
+
+    newStock = result;
 
     // Publish stock update event
     if (channel) {
@@ -154,7 +257,67 @@ app.post('/update', async (req, res) => {
     });
   } catch (error) {
     logger.error('Update stock error:', error);
+    if (error.message === 'Insufficient stock') {
+      return res.status(400).json({ error: 'Insufficient stock' });
+    }
     res.status(500).json({ error: 'Failed to update stock' });
+  }
+});
+
+// Create inventory record
+app.post('/', async (req, res) => {
+  try {
+    const { sku, productId, warehouseId, quantity, minimumStock, location } = req.body;
+    
+    const inventory = await Inventory.create({
+      sku,
+      productId: productId || null,
+      warehouseId: warehouseId || null,
+      quantity: quantity || 0,
+      minimumStock: minimumStock || 0,
+      location: location || null
+    });
+
+    res.json({
+      message: 'Inventory record created successfully',
+      inventory: {
+        id: inventory.id,
+        sku: inventory.sku,
+        productId: inventory.productId,
+        warehouseId: inventory.warehouseId,
+        quantity: inventory.quantity,
+        minimumStock: inventory.minimumStock,
+        location: inventory.location
+      }
+    });
+  } catch (error) {
+    logger.error('Create inventory error:', error);
+    res.status(500).json({ error: 'Failed to create inventory record' });
+  }
+});
+
+// Adjust stock quantity
+app.put('/:sku/adjust', async (req, res) => {
+  try {
+    const { adjustment } = req.body;
+    const { sku } = req.params;
+
+    const inventory = await Inventory.findOne({ where: { sku } });
+    if (!inventory) {
+      return res.status(404).json({ error: 'Product not found in inventory' });
+    }
+
+    inventory.quantity += adjustment;
+    await inventory.save();
+
+    res.json({
+      sku,
+      quantity: inventory.quantity,
+      message: 'Stock adjusted successfully'
+    });
+  } catch (error) {
+    logger.error('Adjust stock error:', error);
+    res.status(500).json({ error: 'Failed to adjust stock' });
   }
 });
 
@@ -163,49 +326,51 @@ app.post('/reserve', async (req, res) => {
   try {
     const { orderId, items } = req.body;
 
-    // Check and reserve stock for all items
-    const reservations = [];
-    const tempReservationKey = `temp_reservation:${orderId}`;
+    // Use transaction for data integrity
+    const result = await sequelize.transaction(async (t) => {
+      const reservations = [];
 
-    for (const item of items) {
-      const currentStock = await redisClient.hGet('inventory', item.sku);
-      const stock = parseInt(currentStock || 0);
+      for (const item of items) {
+        const inventory = await Inventory.findOne({ 
+          where: { sku: item.sku },
+          transaction: t 
+        });
 
-      if (stock < item.quantity) {
-        // Insufficient stock - release any already reserved items
-        await redisClient.del(tempReservationKey);
-        return res.status(400).json({ 
-          error: `Insufficient stock for ${item.sku}`,
-          available: stock,
-          required: item.quantity
+        const availableStock = inventory ? inventory.quantity : 0;
+
+        if (availableStock < item.quantity) {
+          throw new Error(`Insufficient stock for ${item.sku}`);
+        }
+
+        // Reserve stock
+        inventory.quantity -= item.quantity;
+        inventory.reservedQuantity += item.quantity;
+        await inventory.save({ transaction: t });
+
+        reservations.push({
+          sku: item.sku,
+          quantity: item.quantity
         });
       }
 
-      // Reserve stock
-      await redisClient.hIncrBy('inventory', item.sku, -item.quantity);
-      
-      // Store reservation
-      reservations.push({
-        sku: item.sku,
-        quantity: item.quantity
-      });
-    }
-
-    // Store reservation temporarily (expires in 30 minutes)
-    await redisClient.setEx(
-      tempReservationKey,
-      1800,
-      JSON.stringify({ orderId, items: reservations })
-    );
+      return reservations;
+    });
 
     res.json({
       message: 'Stock reserved successfully',
       orderId,
-      reservations,
+      reservations: result,
       expiresIn: '30 minutes'
     });
   } catch (error) {
     logger.error('Reserve stock error:', error);
+    if (error.message.startsWith('Insufficient stock')) {
+      return res.status(400).json({ 
+        error: error.message,
+        available: 0,
+        required: 0
+      });
+    }
     res.status(500).json({ error: 'Failed to reserve stock' });
   }
 });
@@ -213,22 +378,11 @@ app.post('/reserve', async (req, res) => {
 // Confirm reservation
 app.post('/confirm-reservation/:orderId', async (req, res) => {
   try {
-    const reservationKey = `temp_reservation:${req.params.orderId}`;
-    const reservation = await redisClient.get(reservationKey);
+    const { orderId } = req.params;
 
-    if (!reservation) {
-      return res.status(404).json({ error: 'Reservation not found or expired' });
-    }
-
-    // Convert to permanent reservation
-    await redisClient.setEx(
-      `reservation:${req.params.orderId}`,
-      86400, // 24 hours
-      reservation
-    );
-
-    // Delete temp reservation
-    await redisClient.del(reservationKey);
+    // In PostgreSQL, reservations are already permanent
+    // Just log the confirmation
+    logger.info(`Reservation confirmed for order ${orderId}`);
 
     res.json({ message: 'Reservation confirmed' });
   } catch (error) {
@@ -240,23 +394,30 @@ app.post('/confirm-reservation/:orderId', async (req, res) => {
 // Release reservation
 app.post('/release-reservation/:orderId', async (req, res) => {
   try {
-    const reservationKey = `reservation:${req.params.orderId}`;
-    const reservation = await redisClient.get(reservationKey);
+    const { orderId } = req.params;
+    const { items } = req.body;
 
-    if (reservation) {
-      const { items } = JSON.parse(reservation);
-      
-      // Return stock to inventory
-      for (const item of items) {
-        await redisClient.hIncrBy('inventory', item.sku, item.quantity);
-      }
-
-      // Delete reservation
-      await redisClient.del(reservationKey);
-
-      logger.info(`Released reservation for order ${req.params.orderId}`);
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'Items list is required' });
     }
 
+    // Use transaction for data integrity
+    await sequelize.transaction(async (t) => {
+      for (const item of items) {
+        const inventory = await Inventory.findOne({ 
+          where: { sku: item.sku },
+          transaction: t 
+        });
+
+        if (inventory) {
+          inventory.quantity += item.quantity;
+          inventory.reservedQuantity -= item.quantity;
+          await inventory.save({ transaction: t });
+        }
+      }
+    });
+
+    logger.info(`Released reservation for order ${orderId}`);
     res.json({ message: 'Reservation released' });
   } catch (error) {
     logger.error('Release reservation error:', error);
@@ -294,7 +455,7 @@ const processOrderEvents = async (msg) => {
         
       case 'ORDER_CANCELLED':
         // Release reserved stock
-        await releaseReservedStock(event.orderId);
+        await releaseReservedStock(event.orderId, event.items);
         break;
     }
     
@@ -307,30 +468,38 @@ const processOrderEvents = async (msg) => {
 // Helper function to check and reserve stock
 const checkAndReserveStock = async (orderId, items) => {
   try {
-    // Check stock for all items
-    for (const item of items) {
-      const stock = await redisClient.hGet('inventory', item.sku);
-      if (!stock || parseInt(stock) < item.quantity) {
-        return {
-          success: false,
-          reason: `Insufficient stock for ${item.sku}`
-        };
+    // Use transaction for data integrity
+    const result = await sequelize.transaction(async (t) => {
+      // Check stock for all items
+      for (const item of items) {
+        const inventory = await Inventory.findOne({ 
+          where: { sku: item.sku },
+          transaction: t 
+        });
+        
+        const stock = inventory ? inventory.quantity : 0;
+        
+        if (stock < item.quantity) {
+          throw new Error(`Insufficient stock for ${item.sku}`);
+        }
       }
-    }
+      
+      // Reserve stock for all items
+      for (const item of items) {
+        const inventory = await Inventory.findOne({ 
+          where: { sku: item.sku },
+          transaction: t 
+        });
+        
+        inventory.quantity -= item.quantity;
+        inventory.reservedQuantity += item.quantity;
+        await inventory.save({ transaction: t });
+      }
+      
+      return { success: true };
+    });
     
-    // Reserve stock
-    for (const item of items) {
-      await redisClient.hIncrBy('inventory', item.sku, -item.quantity);
-    }
-    
-    // Store reservation
-    await redisClient.setEx(
-      `reservation:${orderId}`,
-      3600, // 1 hour
-      JSON.stringify({ items })
-    );
-    
-    return { success: true };
+    return result;
   } catch (error) {
     logger.error('Check and reserve stock error:', error);
     return { success: false, reason: error.message };
@@ -338,21 +507,29 @@ const checkAndReserveStock = async (orderId, items) => {
 };
 
 // Helper function to release reserved stock
-const releaseReservedStock = async (orderId) => {
+const releaseReservedStock = async (orderId, items) => {
   try {
-    const reservationKey = `reservation:${orderId}`;
-    const reservation = await redisClient.get(reservationKey);
-    
-    if (reservation) {
-      const { items } = JSON.parse(reservation);
-      
-      for (const item of items) {
-        await redisClient.hIncrBy('inventory', item.sku, item.quantity);
-      }
-      
-      await redisClient.del(reservationKey);
-      logger.info(`Released stock for order ${orderId}`);
+    if (!items || !Array.isArray(items)) {
+      logger.warn(`No items provided for order ${orderId}`);
+      return;
     }
+
+    await sequelize.transaction(async (t) => {
+      for (const item of items) {
+        const inventory = await Inventory.findOne({ 
+          where: { sku: item.sku },
+          transaction: t 
+        });
+        
+        if (inventory) {
+          inventory.quantity += item.quantity;
+          inventory.reservedQuantity -= item.quantity;
+          await inventory.save({ transaction: t });
+        }
+      }
+    });
+    
+    logger.info(`Released stock for order ${orderId}`);
   } catch (error) {
     logger.error('Release reserved stock error:', error);
   }
@@ -400,7 +577,9 @@ init();
 
 process.on('SIGTERM', async () => {
   logger.info('Shutting down inventory service...');
-  await redisClient.quit();
+  if (sequelize) {
+    await sequelize.close();
+  }
   if (channel) {
     await channel.close();
   }

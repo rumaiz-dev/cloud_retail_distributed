@@ -17,7 +17,7 @@ const sequelize = new Sequelize(
 
 // RabbitMQ connection with reconnect logic
 let channel = null;
-const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://rabbitmq';
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://admin:admin123@rabbitmq';
 const ORDER_EXCHANGE = 'order-events';
 const SAGA_QUEUE = 'order-saga';
 

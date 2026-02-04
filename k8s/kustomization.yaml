@@ -7,16 +7,27 @@ resources:
   - namespace.yaml
   - configmap.yaml
   - secret.yaml
-  - consul-deployment.yaml
   - redis-deployment.yaml
   - api-gateway-deployment.yaml
   - user-service-deployment.yaml
   - product-service-deployment.yaml
-  - order-service-deployment.yaml
   - inventory-service-deployment.yaml
   - service.yaml
   - ingress.yaml
   - hpa.yaml
+
+# Reduce replicas to 1 per service to fit EKS cluster capacity
+# (4 t3.micro nodes with 4 pods max per node = 16 total capacity)
+# System pods consume 2-4 pods per node, so only 4 microservices can run
+replicas:
+  - name: api-gateway
+    count: 1
+  - name: user-service
+    count: 1
+  - name: product-service
+    count: 1
+  - name: inventory-service
+    count: 1
 
 # Common labels for all resources
 commonLabels:

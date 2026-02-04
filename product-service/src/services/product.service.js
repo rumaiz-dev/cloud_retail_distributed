@@ -11,10 +11,13 @@ class ProductService {
     // Try cache first
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
+      logger.info(`[DEBUG] Cache HIT for key: ${cacheKey}, returning cached data`);
       return JSON.parse(cachedData);
     }
+    logger.info(`[DEBUG] Cache MISS for key: ${cacheKey}, querying database`);
 
     const products = await productRepository.findAll(options);
+    logger.info(`[DEBUG] Database returned ${products.length} products for options:`, options);
     
     // Cache for 5 minutes
     await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(products));

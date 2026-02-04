@@ -27,18 +27,20 @@ const updateProductSchema = Joi.object({
   stockQuantity: Joi.number().min(0),
   images: Joi.array().items(Joi.string()),
   specifications: Joi.object(),
-  attributes: Joi.object()
+  attributes: Joi.object(),
+  isActive: Joi.boolean()
 }).min(1);
 
 class ProductController {
   async getProducts(req, res, next) {
     try {
-      const { category, page, limit, sort } = req.query;
+      const { category, page, limit, sort, includeInactive } = req.query;
       const products = await productService.getProducts({
         category,
         page: parseInt(page) || 1,
         limit: parseInt(limit) || 20,
-        sort: sort || 'createdAt'
+        sort: sort || 'createdAt',
+        includeInactive: includeInactive === 'true'
       });
       res.json(products);
     } catch (error) {

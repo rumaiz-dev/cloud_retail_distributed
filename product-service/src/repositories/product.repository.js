@@ -3,19 +3,28 @@ const Product = require('../models/product.model');
 
 class ProductRepository {
   async findAll(options = {}) {
-    const { category, page = 1, limit = 20, sort = 'created_at', order = 'ASC' } = options;
+    const { category, page = 1, limit = 20, sort = 'created_at', order = 'ASC', includeInactive = false } = options;
     
-    const where = { isActive: true };
+    const where = {};
+    if (!includeInactive) {
+      where.isActive = true;
+    }
     if (category) {
       where.category = category;
     }
 
-    return Product.findAll({
+    console.log(`[DEBUG] Repository findAll called with:`, { category, page, limit, sort, order, includeInactive });
+    console.log(`[DEBUG] Repository where clause:`, JSON.stringify(where));
+
+    const products = await Product.findAll({
       where,
       order: [[literal('"created_at"'), order]],
       offset: (page - 1) * limit,
       limit: parseInt(limit)
     });
+    
+    console.log(`[DEBUG] Repository findAll returning ${products.length} products`);
+    return products;
   }
 
   async findById(id) {

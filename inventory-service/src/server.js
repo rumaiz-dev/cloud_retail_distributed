@@ -1,5 +1,6 @@
 const express = require('express');
 const helmet = require('helmet');
+const cors = require('cors');
 const consul = require('consul');
 const { initDatabase, connectRabbitMQ, getChannel, QUEUE_NAME } = require('./config/database');
 const inventoryRoutes = require('./routes/inventory.routes');
@@ -12,6 +13,11 @@ const PORT = process.env.PORT || 3004;
 
 // Middleware
 app.use(helmet());
+app.use(cors({
+  origin: 'http://localhost:8080',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Routes

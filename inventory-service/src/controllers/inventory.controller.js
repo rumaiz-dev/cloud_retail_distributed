@@ -6,11 +6,12 @@ const logger = require('../utils/logger');
 // Validation schemas
 const createInventorySchema = Joi.object({
   sku: Joi.string().required(),
-  productId: Joi.string().uuid().allow(null),
-  warehouseId: Joi.string().uuid().allow(null),
+  productId: Joi.string().uuid().required(),
+  warehouseId: Joi.string().uuid().required(),
   quantity: Joi.number().integer().min(0).default(0),
   minimumStock: Joi.number().integer().min(0).default(0),
-  location: Joi.string().allow('')
+  location: Joi.string().required(),
+  lastRestocked: Joi.date().optional()
 });
 
 const reserveStockSchema = Joi.object({
@@ -93,7 +94,8 @@ const createInventory = async (req, res, next) => {
         warehouseId: inventory.warehouseId,
         quantity: inventory.quantity,
         minimumStock: inventory.minimumStock,
-        location: inventory.location
+        location: inventory.location,
+        lastRestocked: inventory.lastRestocked
       }
     });
   } catch (error) {

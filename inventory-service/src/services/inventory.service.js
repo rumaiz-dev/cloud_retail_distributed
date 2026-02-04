@@ -17,7 +17,11 @@ class InventoryService {
   }
 
   async createInventory(data) {
-    return await inventoryRepository.create(data);
+    const inventoryData = {
+      ...data,
+      lastRestocked: data.lastRestocked || new Date()
+    };
+    return await inventoryRepository.create(inventoryData);
   }
 
   async updateStock(id, data) {

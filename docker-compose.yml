@@ -48,15 +48,6 @@ services:
     networks:
       - cloudretail-network
 
-  mongodb:
-    image: mongo:6
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-    networks:
-      - cloudretail-network
-
   redis:
     image: redis:7-alpine
     ports:

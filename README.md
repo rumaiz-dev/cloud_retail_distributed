@@ -38,7 +38,7 @@ Before you begin, ensure you have the following installed:
 git clone <repository-url>
 cd cloudretail
 
-# Start all services
+# Start all services (including dashboard)
 docker-compose up -d
 
 # View running services
@@ -52,7 +52,7 @@ docker-compose ps
 docker-compose up -d consul mongodb postgres redis rabbitmq prometheus grafana jaeger
 
 # Then start application services
-docker-compose up -d api-gateway user-service product-service order-service inventory-service
+docker-compose up -d api-gateway user-service product-service order-service inventory-service dashboard-service
 ```
 
 ### Verify Installation
@@ -76,6 +76,31 @@ cloudretail/
 │   ├── swagger.yaml            # API documentation
 │   └── src/
 │       └── server.js           # Gateway server entry point
+│
+├── dashboard-service/           # Dashboard aggregation service (NEW)
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── .env.example
+│   ├── logs/
+│   └── src/
+│       ├── server.js
+│       ├── clients/
+│       │   └── http-client.js  # HTTP client for service communication
+│       ├── controllers/
+│       │   └── dashboard.controller.js
+│       ├── routes/
+│       │   └── dashboard.routes.js
+│       ├── services/
+│       │   ├── dashboard.service.js    # Main aggregation service
+│       │   ├── inventory.client.js     # Inventory service client
+│       │   ├── product.client.js       # Product service client
+│       │   ├── order.client.js        # Order service client
+│       │   └── cache.client.js        # Redis caching client
+│       ├── middlewares/
+│       │   └── error.middleware.js
+│       └── utils/
+│           └── logger.js
 │
 ├── user-service/               # User management service
 │   ├── Dockerfile
@@ -196,6 +221,77 @@ Manages inventory operations:
 - `PUT /inventory/:productId` - Update stock
 - `POST /inventory/reserve` - Reserve inventory
 
+### Dashboard Service (Port 3006)
+
+The Dashboard Service aggregates data from all microservices to provide a unified view for monitoring and analytics:
+
+- **Aggregates data** from Inventory, Product, and Order services
+- **Parallel data fetching** for optimal performance
+- **Redis caching** with configurable TTL
+- **Graceful error handling** with fallback data
+- **Request tracing** with X-Request-ID headers
+
+**Endpoints** (direct access):
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Service info |
+| GET | `/api/v1/dashboard/health` | Health check with all dependencies |
+| GET | `/api/v1/dashboard/summary` | Complete dashboard summary |
+| GET | `/api/v1/dashboard/metrics` | Aggregated metrics |
+| GET | `/api/v1/dashboard/inventory` | Inventory statistics |
+| GET | `/api/v1/dashboard/products` | Product statistics |
+| GET | `/api/v1/dashboard/orders` | Order statistics |
+| POST | `/api/v1/dashboard/cache/invalidate` | Clear cache |
+
+**Response Example** (Summary):
+```json
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "totalProducts": 0,
+      "totalOrders": 0,
+      "totalRevenue": 0,
+      "lowStockItems": 0,
+      "pendingOrders": 0
+    },
+    "inventory": { "totalStock": 0, "lowStockCount": 0 },
+    "products": { "totalProducts": 0, "categoryCount": 0 },
+    "orders": { "totalOrders": 0, "pendingOrders": 0 }
+  }
+}
+```
+
+**Running the Dashboard Service:**
+```bash
+# Build and run with Docker
+cd dashboard-service
+docker build -t cloudretail/dashboard-service:latest .
+docker run -p 3006:3005 --env-file .env cloudretail/dashboard-service:latest
+
+# Or using npm
+cd dashboard-service
+npm install
+npm start
+```
+
+**Configuration** (`.env`):
+```env
+PORT=3005
+NODE_ENV=development
+
+# Service URLs (for Docker: use host.docker.internal)
+INVENTORY_SERVICE_URL=http://host.docker.internal:3004
+PRODUCT_SERVICE_URL=http://host.docker.internal:3002
+ORDER_SERVICE_URL=http://host.docker.internal:3003
+
+# Redis (optional - caching will be disabled if not configured)
+REDIS_HOST=
+REDIS_PORT=
+
+# Cache TTL (seconds)
+DASHBOARD_CACHE_TTL=60
+```
 ## 🏗 Infrastructure Services
 
 | Service | Port | Description |
@@ -269,6 +365,7 @@ node load-test.js
 | Service | URL | Description |
 |---------|-----|-------------|
 | API Gateway | http://localhost:3000 | Main API entry point |
+| Dashboard Service | http://localhost:3006 | Unified dashboard aggregation |
 | Consul UI | http://localhost:8500 | Service discovery console |
 | RabbitMQ Management | http://localhost:15672 | Message queue admin (default: guest/guest) |
 | Prometheus | http://localhost:9090 | Metrics dashboard |

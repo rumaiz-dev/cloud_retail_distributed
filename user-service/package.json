@@ -8,6 +8,8 @@
     "dev": "nodemon src/server.js",
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:coverage": "jest --coverage",
     "lint": "eslint ."
   },
   "dependencies": {

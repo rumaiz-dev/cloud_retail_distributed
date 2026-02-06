@@ -9,9 +9,6 @@ class DashboardService {
     this.cacheTTL = parseInt(process.env.DASHBOARD_CACHE_TTL) || 60;
   }
 
-  /**
-   * Get cache key for dashboard data
-   */
   getCacheKey(type, options = {}) {
     const { period = 'all', warehouseId = null } = options;
     let key = `dashboard:${type}:${period}`;
@@ -21,9 +18,6 @@ class DashboardService {
     return key;
   }
 
-  /**
-   * Try to get data from cache
-   */
   async getCachedData(key) {
     try {
       const cached = await cacheClient.get(key);
@@ -39,9 +33,7 @@ class DashboardService {
     }
   }
 
-  /**
-   * Set data in cache
-   */
+
   async setCachedData(key, data) {
     try {
       await cacheClient.set(key, data, this.cacheTTL);
@@ -51,37 +43,27 @@ class DashboardService {
     }
   }
 
-  /**
-   * Get comprehensive dashboard summary
-   */
   async getDashboardSummary(options = {}) {
     const cacheKey = this.getCacheKey('summary', options);
     
-    // Try cache first
     const cachedData = await this.getCachedData(cacheKey);
     if (cachedData) {
       return { ...cachedData, fromCache: true };
     }
 
-    // Fetch data from all services in parallel
     const [inventoryMetrics, productMetrics, orderMetrics] = await Promise.all([
       this.getInventoryMetrics(),
       this.getProductMetrics(),
       this.getOrderMetrics()
     ]);
 
-    // Aggregate the metrics
     const summary = this.aggregateMetrics(inventoryMetrics, productMetrics, orderMetrics);
     
-    // Cache the result
     await this.setCachedData(cacheKey, summary);
 
     return { ...summary, fromCache: false };
   }
 
-  /**
-   * Get inventory metrics
-   */
   async getInventoryMetrics() {
     try {
       const [stockSummary, lowStock, outOfStock, byWarehouse] = await Promise.all([
@@ -110,9 +92,6 @@ class DashboardService {
     }
   }
 
-  /**
-   * Get product metrics
-   */
   async getProductMetrics() {
     try {
       const [products, categories] = await Promise.all([
@@ -139,9 +118,6 @@ class DashboardService {
     }
   }
 
-  /**
-   * Get order metrics
-   */
   async getOrderMetrics() {
     try {
       const [orders, todayOrders, revenue, recentOrders] = await Promise.all([
@@ -178,9 +154,6 @@ class DashboardService {
     }
   }
 
-  /**
-   * Aggregate metrics from all services into a summary
-   */
   aggregateMetrics(inventoryMetrics, productMetrics, orderMetrics) {
     return {
       timestamp: new Date().toISOString(),
@@ -220,9 +193,6 @@ class DashboardService {
     };
   }
 
-  /**
-   * Get specific metrics based on type
-   */
   async getMetrics(type, options = {}) {
     const cacheKey = this.getCacheKey(`metrics:${type}`, options);
     
@@ -251,9 +221,6 @@ class DashboardService {
     return { ...metrics, fromCache: false };
   }
 
-  /**
-   * Get inventory-specific dashboard data
-   */
   async getInventoryStats(options = {}) {
     const cacheKey = this.getCacheKey('inventory', options);
     
@@ -268,9 +235,6 @@ class DashboardService {
     return { ...metrics, fromCache: false };
   }
 
-  /**
-   * Get product-specific dashboard data
-   */
   async getProductStats(options = {}) {
     const cacheKey = this.getCacheKey('products', options);
     
@@ -285,9 +249,6 @@ class DashboardService {
     return { ...metrics, fromCache: false };
   }
 
-  /**
-   * Get order-specific dashboard data
-   */
   async getOrderStats(options = {}) {
     const cacheKey = this.getCacheKey('orders', options);
     
@@ -302,9 +263,6 @@ class DashboardService {
     return { ...metrics, fromCache: false };
   }
 
-  /**
-   * Check health of all dependent services
-   */
   async checkServiceHealth() {
     const [inventoryHealth, productHealth, orderHealth, cacheHealth] = await Promise.all([
       inventoryClient.checkHealth(),
@@ -321,13 +279,9 @@ class DashboardService {
     };
   }
 
-  /**
-   * Invalidate all dashboard cache
-   */
   async invalidateCache() {
     try {
-      // Note: In a real implementation, you would want to track all cache keys
-      // and delete them. For now, we'll just return success.
+
       logger.info('Dashboard cache invalidated');
       return true;
     } catch (error) {

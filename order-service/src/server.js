@@ -2,6 +2,7 @@ require('express-async-errors');
 const express = require('express');
 const helmet = require('helmet');
 const consul = require('consul');
+const { metricsMiddleware, getMetrics, getContentType } = require('../shared/utils/metrics');
 
 const { sequelize, connectRabbitMQ, getChannel, SAGA_QUEUE } = require('./config/database');
 const orderRoutes = require('./routes/order.routes');
@@ -14,6 +15,19 @@ const PORT = process.env.PORT || 3003;
 
 app.use(helmet());
 app.use(express.json());
+
+// Metrics middleware
+app.use(metricsMiddleware);
+
+// Metrics endpoint
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', getContentType());
+    res.end(await getMetrics());
+  } catch (error) {
+    res.status(500).end(error.message);
+  }
+});
 
 
 app.use('/api/v1/orders', orderRoutes);

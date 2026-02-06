@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const consul = require('consul');
+const { metricsMiddleware, getMetrics, getContentType } = require('../shared/utils/metrics');
 
 const logger = require('./utils/logger');
 const { sequelize, redisClient, connectRabbitMQ } = require('./config/database');
@@ -23,6 +24,19 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+
+// Metrics middleware
+app.use(metricsMiddleware);
+
+// Metrics endpoint
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', getContentType());
+    res.end(await getMetrics());
+  } catch (error) {
+    res.status(500).end(error.message);
+  }
+});
 
 
 const limiter = rateLimit({

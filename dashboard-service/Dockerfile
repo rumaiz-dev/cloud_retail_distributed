@@ -9,6 +9,9 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci --only=production
 
+# Copy shared folder
+COPY shared ./shared
+
 # Copy source code
 COPY . .
 

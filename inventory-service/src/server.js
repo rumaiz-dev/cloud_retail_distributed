@@ -3,6 +3,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const consul = require('consul');
 const { initDatabase, connectRabbitMQ, getChannel, QUEUE_NAME } = require('./config/database');
+const { metricsMiddleware, getMetrics, getContentType } = require('../shared/utils/metrics');
 const inventoryRoutes = require('./routes/inventory.routes');
 const errorHandler = require('./middlewares/error.middleware');
 const logger = require('./utils/logger');
@@ -19,6 +20,19 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+
+// Metrics middleware
+app.use(metricsMiddleware);
+
+// Metrics endpoint
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', getContentType());
+    res.end(await getMetrics());
+  } catch (error) {
+    res.status(500).end(error.message);
+  }
+});
 
 
 app.use('/api/v1/inventory', inventoryRoutes);

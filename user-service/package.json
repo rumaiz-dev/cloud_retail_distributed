@@ -13,6 +13,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "prom-client": "^15.0.0",
     "amqplib": "^0.10.3",
     "bcryptjs": "^2.4.3",
     "consul": "^1.2.0",

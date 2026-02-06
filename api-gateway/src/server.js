@@ -9,6 +9,7 @@ const YAML = require('yamljs');
 const winston = require('winston');
 const consul = require('consul');
 const jwt = require('jsonwebtoken');
+const { metricsMiddleware, getMetrics, getContentType, recordError } = require('../shared/utils/metrics');
 
 
 const app = express();
@@ -43,6 +44,19 @@ app.use(helmet());
 app.use(cors());
 app.use(compression());
 app.use(express.json());
+
+// Metrics middleware
+app.use(metricsMiddleware);
+
+// Metrics endpoint
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', getContentType());
+    res.end(await getMetrics());
+  } catch (error) {
+    res.status(500).end(error.message);
+  }
+});
 
 
 const apiLimiter = rateLimit({

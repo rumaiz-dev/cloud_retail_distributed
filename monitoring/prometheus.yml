@@ -29,3 +29,7 @@ scrape_configs:
   - job_name: 'inventory-service'
     static_configs:
       - targets: ['inventory-service:3004']
+
+  - job_name: 'dashboard-service'
+    static_configs:
+      - targets: ['dashboard-service:3005']

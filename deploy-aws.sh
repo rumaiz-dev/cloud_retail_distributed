@@ -1,11 +1,3 @@
-#!/bin/bash
-
-# =============================================================================
-# AWS Deployment Script for Cloud Retail Services
-# =============================================================================
-# This script deploys the Cloud Retail microservices to AWS using Docker Compose.
-# It uses AWS RDS for PostgreSQL and assumes services are running within AWS VPC.
-# =============================================================================
 
 set -e
 
@@ -14,10 +6,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
-
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}Cloud Retail AWS Deployment Script${NC}"
-echo -e "${GREEN}========================================${NC}"
 
 # Check if required environment variables are set
 if [ -z "$DB_HOST" ]; then

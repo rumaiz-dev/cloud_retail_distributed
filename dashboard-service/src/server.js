@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const { metricsMiddleware, getMetrics, getContentType } = require('../shared/utils/metrics');
 
 const dashboardRoutes = require('./routes/dashboard.routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.middleware');
@@ -29,6 +30,19 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Metrics middleware
+app.use(metricsMiddleware);
+
+// Metrics endpoint
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', getContentType());
+    res.end(await getMetrics());
+  } catch (error) {
+    res.status(500).end(error.message);
+  }
+});
 
 
 app.use((req, res, next) => {

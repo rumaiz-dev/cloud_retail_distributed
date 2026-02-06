@@ -139,6 +139,20 @@ services:
     networks:
       - cloudretail-network
 
+  dashboard-service:
+    build: ./dashboard-service
+    ports:
+      - "3006:3005"
+    environment:
+      - PORT=${DASHBOARD_SERVICE_PORT:-3005}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:8080}
+    depends_on:
+      - redis
+    networks:
+      - cloudretail-network
+
   # Monitoring
   grafana:
     image: grafana/grafana:latest
@@ -146,8 +160,13 @@ services:
       - "3005:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/service-health.json
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana.ini:/etc/grafana/grafana.ini
+      - ./monitoring/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./monitoring/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
     networks:
       - cloudretail-network
 
@@ -160,6 +179,11 @@ services:
       - prometheus-data:/prometheus
     networks:
       - cloudretail-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
 
   jaeger:
     image: jaegertracing/all-in-one:latest

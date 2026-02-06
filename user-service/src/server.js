@@ -3,6 +3,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const consul = require('consul');
+const { metricsMiddleware, getMetrics, getContentType, recordDbOperation } = require('../shared/utils/metrics');
 
 
 const { sequelize, connectRabbitMQ } = require('./config/database');
@@ -20,6 +21,19 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:8080', credentials: true }));
 app.use(helmet());
 app.use(express.json());
+
+// Metrics middleware
+app.use(metricsMiddleware);
+
+// Metrics endpoint
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', getContentType());
+    res.end(await getMetrics());
+  } catch (error) {
+    res.status(500).end(error.message);
+  }
+});
 
 
 app.get('/health', async (req, res) => {

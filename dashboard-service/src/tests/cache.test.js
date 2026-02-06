@@ -3,6 +3,7 @@
  * Tests for Redis caching behavior
  */
 
+const request = require('supertest');
 const express = require('express');
 
 // Create a mock Redis client
@@ -166,7 +167,7 @@ describe('Redis Cache Behavior', () => {
 
       // Second request should hit cache
       const cachedData2 = await redisClient.get(cacheKey);
-      expect(cachedData2).toEqual({ count: 100 });
+      expect(JSON.parse(cachedData2)).toEqual({ count: 100 });
     });
   });
 

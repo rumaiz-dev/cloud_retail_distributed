@@ -12,20 +12,6 @@ jest.mock('../clients/http-client', () => ({
   post: jest.fn(),
 }));
 
-// Mock Redis cache
-jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => ({
-    get: jest.fn().mockResolvedValue(null),
-    set: jest.fn().mockResolvedValue('OK'),
-    del: jest.fn().mockResolvedValue(1),
-    quit: jest.fn().mockResolvedValue('OK'),
-  }));
-});
-
-jest.mock('jsonwebtoken', () => ({
-  verify: jest.fn().mockReturnValue({ userId: 'test-user-id', role: 'admin' }),
-}));
-
 const httpClient = require('../clients/http-client');
 
 // Create a simple test app with dashboard features
@@ -33,21 +19,13 @@ const createTestApp = () => {
   const app = express();
   app.use(express.json());
 
-  // Auth middleware
+  // Auth middleware (simplified - no JWT needed for tests)
   const authMiddleware = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     next();
-  };
-
-  // Cache middleware
-  const cacheMiddleware = (cacheKey, ttl = 300) => {
-    return async (req, res, next) => {
-      // Cache logic would be here
-      next();
-    };
   };
 
   // Get dashboard overview

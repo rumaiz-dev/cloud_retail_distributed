@@ -3,7 +3,7 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { authenticate, requireRole } = require('../middlewares/auth.middleware');
 
-// Public routes
+
 router.post(
   '/register',
   authController.registerValidation,
@@ -18,11 +18,11 @@ router.post(
   authController.login
 );
 
-// Protected routes (require authentication)
+
 router.get('/profile', authenticate, authController.getProfile);
 router.put('/profile', authenticate, authController.updateProfileValidation, authController.handleValidationErrors, authController.updateProfile);
 
-// Admin only routes
+
 router.get('/users', authenticate, requireRole('admin'), authController.getAllUsers);
 router.get('/users/:id', authenticate, authController.userIdValidation, authController.handleValidationErrors, authController.getUserById);
 

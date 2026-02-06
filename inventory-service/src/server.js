@@ -11,7 +11,7 @@ const inventoryService = require('./services/inventory.service');
 const app = express();
 const PORT = process.env.PORT || 3004;
 
-// Middleware
+
 app.use(helmet());
 app.use(cors({
   origin: 'http://localhost:8080',
@@ -20,10 +20,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Routes
+
 app.use('/api/v1/inventory', inventoryRoutes);
 
-// Health check
+
 app.get('/health', async (req, res) => {
   const channel = getChannel();
   const dbStatus = 'connected'; // Simplified for health check
@@ -40,10 +40,10 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// Error handler
+
 app.use(errorHandler);
 
-// Process order events from RabbitMQ
+
 const processOrderEvents = async (msg) => {
   try {
     const event = JSON.parse(msg.content.toString());
@@ -53,14 +53,14 @@ const processOrderEvents = async (msg) => {
         const result = await inventoryService.checkAndReserveStock(event.orderId, event.items);
         
         if (result.success) {
-          // Publish success event
+          
           const { publishEvent } = require('./config/database');
           await publishEvent('inventory-events', 'stock.reserved', {
             event: 'STOCK_RESERVED',
             orderId: event.orderId
           });
         } else {
-          // Publish failure event
+          
           const { publishEvent } = require('./config/database');
           await publishEvent('inventory-events', 'stock.reservation.failed', {
             event: 'STOCK_RESERVATION_FAILED',
@@ -110,7 +110,7 @@ const registerWithConsul = () => {
       }
     });
 
-    // Graceful shutdown
+    
     process.on('SIGTERM', () => {
       client.agent.service.deregister(serviceId, () => {
         logger.info('Deregistered from Consul');
@@ -120,18 +120,18 @@ const registerWithConsul = () => {
   }
 };
 
-// Initialize and start server
+
 const startServer = async () => {
   try {
-    // Initialize database
+    
     await initDatabase();
     
-    // Try to connect to RabbitMQ (optional)
+    
     try {
       await connectRabbitMQ();
       logger.info('RabbitMQ connected');
       
-      // Start consuming order events
+      
       const channel = getChannel();
       if (channel) {
         await channel.consume(QUEUE_NAME, processOrderEvents);
@@ -144,7 +144,7 @@ const startServer = async () => {
     // Register with Consul
     registerWithConsul();
     
-    // Start server
+    
     app.listen(PORT, () => {
       logger.info(`Inventory service running on port ${PORT}`);
     });

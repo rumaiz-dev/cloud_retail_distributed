@@ -14,30 +14,30 @@ const cacheClient = require('./services/cache.client');
 const app = express();
 const PORT = process.env.PORT || 3005;
 
-// Security middleware
+
 app.use(helmet({
   contentSecurityPolicy: false
 }));
 
-// CORS configuration
+
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:8080',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']
 }));
 
-// Body parsing
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Request ID middleware
+
 app.use((req, res, next) => {
   req.requestId = req.headers['x-request-id'] || uuidv4();
   res.setHeader('X-Request-ID', req.requestId);
   next();
 });
 
-// Request logging
+
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -53,10 +53,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Dashboard routes
+
 app.use('/api/v1/dashboard', dashboardRoutes);
 
-// Root health check
+
 app.get('/', (req, res) => {
   res.json({
     service: 'dashboard-service',
@@ -66,13 +66,13 @@ app.get('/', (req, res) => {
   });
 });
 
-// Global error handler
+
 app.use(errorHandler);
 
-// 404 handler
+
 app.use(notFoundHandler);
 
-// Graceful shutdown
+
 const gracefulShutdown = async (signal) => {
   logger.info(`${signal} received. Starting graceful shutdown...`);
   
@@ -98,10 +98,10 @@ const gracefulShutdown = async (signal) => {
   }
 };
 
-// Initialize and start server
+
 const startServer = async () => {
   try {
-    // Connect to Redis for caching (optional)
+    
     try {
       await cacheClient.connect();
     } catch (error) {
@@ -114,7 +114,7 @@ const startServer = async () => {
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 
-    // Handle shutdown signals
+    
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 

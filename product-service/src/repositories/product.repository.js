@@ -13,18 +13,12 @@ class ProductRepository {
       where.category = category;
     }
 
-    console.log(`[DEBUG] Repository findAll called with:`, { category, page, limit, sort, order, includeInactive });
-    console.log(`[DEBUG] Repository where clause:`, JSON.stringify(where));
-
-    const products = await Product.findAll({
+    return Product.findAll({
       where,
       order: [[literal('"created_at"'), order]],
       offset: (page - 1) * limit,
       limit: parseInt(limit)
     });
-    
-    console.log(`[DEBUG] Repository findAll returning ${products.length} products`);
-    return products;
   }
 
   async findById(id) {

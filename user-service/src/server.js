@@ -4,24 +4,24 @@ const helmet = require('helmet');
 const cors = require('cors');
 const consul = require('consul');
 
-// Import modules
+
 const { sequelize, connectRabbitMQ } = require('./config/database');
 const logger = require('./utils/logger');
 const authRoutes = require('./routes/auth.routes');
 const { errorMiddleware, notFoundHandler } = require('./middlewares/error.middleware');
 
-// Import models to sync
+
 require('./models/user.model');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:8080', credentials: true }));
 app.use(helmet());
 app.use(express.json());
 
-// Health check endpoint
+
 app.get('/health', async (req, res) => {
   try {
     await sequelize.authenticate();
@@ -40,14 +40,14 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// API routes
+
 app.use('/api/v1/auth', authRoutes);
 
-// Error handling
+
 app.use(notFoundHandler);
 app.use(errorMiddleware);
 
-// Service registration with Consul
+
 const registerWithConsul = async () => {
   const consulClient = new consul({ 
     host: process.env.CONSUL_HOST || 'consul', 
@@ -68,7 +68,7 @@ const registerWithConsul = async () => {
   logger.info('Registered user-service with Consul');
 };
 
-// Graceful shutdown
+
 const gracefulShutdown = async (signal) => {
   logger.info(`Received ${signal}. Shutting down user service...`);
   
@@ -85,22 +85,22 @@ const gracefulShutdown = async (signal) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// Initialize and start server
+
 const startServer = async () => {
   try {
-    // Connect to database
+    
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
     logger.info('Database connected and synced');
 
-    // Connect to RabbitMQ
+    
     await connectRabbitMQ(logger);
 
-    // Start server
+    
     app.listen(PORT, async () => {
       logger.info(`User service running on port ${PORT}`);
       
-      // Register with Consul
+      
       await registerWithConsul();
     });
   } catch (error) {

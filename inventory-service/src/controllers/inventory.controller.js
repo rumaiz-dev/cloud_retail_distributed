@@ -3,7 +3,7 @@ const { sequelize } = require('../config/database');
 const inventoryService = require('../services/inventory.service');
 const logger = require('../utils/logger');
 
-// Validation schemas
+
 const createInventorySchema = Joi.object({
   sku: Joi.string().required(),
   productId: Joi.string().uuid().required(),
@@ -29,7 +29,7 @@ const releaseReservationSchema = Joi.object({
   })).required()
 });
 
-// Get all inventory
+
 const getAllInventory = async (req, res, next) => {
   try {
     const inventory = await inventoryService.getAllInventory();
@@ -53,7 +53,7 @@ const getAllInventory = async (req, res, next) => {
   }
 };
 
-// Get stock by SKU
+
 const getStock = async (req, res, next) => {
   try {
     const inventory = await inventoryService.getStock(req.params.sku);
@@ -76,7 +76,7 @@ const getStock = async (req, res, next) => {
   }
 };
 
-// Create inventory record
+
 const createInventory = async (req, res, next) => {
   try {
     const { error } = createInventorySchema.validate(req.body);
@@ -103,7 +103,7 @@ const createInventory = async (req, res, next) => {
   }
 };
 
-// Update inventory
+
 const updateInventory = async (req, res, next) => {
   try {
     const inventory = await inventoryService.updateStock(req.params.id, req.body);
@@ -119,7 +119,7 @@ const updateInventory = async (req, res, next) => {
   }
 };
 
-// Adjust stock quantity
+
 const adjustStock = async (req, res, next) => {
   try {
     const { adjustment } = req.body;
@@ -141,7 +141,7 @@ const adjustStock = async (req, res, next) => {
   }
 };
 
-// Reserve stock for order
+
 const reserveStock = async (req, res, next) => {
   try {
     const { error } = reserveStockSchema.validate(req.body);
@@ -181,7 +181,7 @@ const reserveStock = async (req, res, next) => {
   }
 };
 
-// Release reservation
+
 const releaseReservation = async (req, res, next) => {
   try {
     const { error } = releaseReservationSchema.validate(req.body);
@@ -196,7 +196,7 @@ const releaseReservation = async (req, res, next) => {
   }
 };
 
-// Confirm reservation
+
 const confirmReservation = async (req, res, next) => {
   try {
     const result = await inventoryService.confirmReservation(req.params.orderId);
@@ -206,7 +206,7 @@ const confirmReservation = async (req, res, next) => {
   }
 };
 
-// Get low stock items
+
 const getLowStockItems = async (req, res, next) => {
   try {
     const items = await inventoryService.getLowStockItems();

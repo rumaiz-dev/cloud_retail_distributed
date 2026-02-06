@@ -15,7 +15,7 @@ const { errorMiddleware, notFoundHandler } = require('./middlewares/error.middle
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-// Middleware
+
 app.use(helmet());
 app.use(cors({
   origin: 'http://localhost:8080',
@@ -24,17 +24,17 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Rate limiting
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100
 });
 app.use('/api/', limiter);
 
-// Routes
+
 app.use('/api/v1/products', productRoutes);
 
-// Health check (at root level)
+
 app.get('/health', async (req, res) => {
   try {
     await sequelize.authenticate();
@@ -60,11 +60,11 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Error handling
+
 app.use(notFoundHandler);
 app.use(errorMiddleware);
 
-// Consul registration
+
 const registerWithConsul = async () => {
   const consulClient = new consul({ host: 'consul', port: 8500 });
   
@@ -82,7 +82,7 @@ const registerWithConsul = async () => {
   logger.info('Registered product-service with Consul');
 };
 
-// Initialize
+
 const init = async () => {
   try {
     await sequelize.authenticate();
@@ -105,7 +105,7 @@ const init = async () => {
 
 init();
 
-// Graceful shutdown
+
 process.on('SIGTERM', async () => {
   logger.info('Shutting down product service...');
   await sequelize.close();

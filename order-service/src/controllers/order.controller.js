@@ -3,7 +3,7 @@ const orderService = require('../services/order.service');
 const { sequelize } = require('../config/database');
 const logger = require('../utils/logger');
 
-// Validation schemas
+
 const createOrderSchema = Joi.object({
   items: Joi.array().items(Joi.object({
     productId: Joi.string().required(),

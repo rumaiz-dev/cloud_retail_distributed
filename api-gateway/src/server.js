@@ -10,11 +10,11 @@ const winston = require('winston');
 const consul = require('consul');
 const jwt = require('jsonwebtoken');
 
-// Initialize Express
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Logger setup
+
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
@@ -27,10 +27,10 @@ const logger = winston.createLogger({
   ]
 });
 
-// Service discovery
+
 const consulClient = new consul({ host: 'consul', port: 8500 });
 
-// Service registry
+
 const services = {
   user: 'http://user-service:3001',
   product: 'http://product-service:3002',
@@ -38,13 +38,13 @@ const services = {
   inventory: 'http://inventory-service:3004'
 };
 
-// Security middleware
+
 app.use(helmet());
 app.use(cors());
 app.use(compression());
 app.use(express.json());
 
-// Rate limiting
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
@@ -53,7 +53,7 @@ const apiLimiter = rateLimit({
 
 app.use('/api/', apiLimiter);
 
-// Authentication middleware
+
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -71,7 +71,7 @@ const authenticateToken = (req, res, next) => {
   }
 };
 
-// Service health checks
+
 const healthChecks = async () => {
   const health = {};
   for (const [service, url] of Object.entries(services)) {
@@ -86,7 +86,7 @@ const healthChecks = async () => {
   return health;
 };
 
-// Routes
+
 app.get('/health', async (req, res) => {
   const servicesHealth = await healthChecks();
   const overallHealth = Object.values(servicesHealth).every(s => s === 'healthy');
@@ -98,11 +98,11 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// API Documentation
+
 const swaggerDocument = YAML.load('./swagger.yaml');
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// Service proxies
+
 app.use('/api/users', authenticateToken, createProxyMiddleware({
   target: services.user,
   changeOrigin: true,
@@ -143,7 +143,7 @@ app.use('/api/inventory', authenticateToken, createProxyMiddleware({
   }
 }));
 
-// Auth endpoints
+
 app.post('/api/auth/register', createProxyMiddleware({
   target: services.user,
   changeOrigin: true,
@@ -156,7 +156,7 @@ app.post('/api/auth/login', createProxyMiddleware({
   pathRewrite: { '^/api/auth': '/auth' }
 }));
 
-// Register services with Consul
+
 const registerService = async (serviceName, port) => {
   await consulClient.agent.service.register({
     name: serviceName,
@@ -171,7 +171,7 @@ const registerService = async (serviceName, port) => {
   logger.info(`Registered ${serviceName} with Consul`);
 };
 
-// Start server
+
 app.listen(PORT, async () => {
   logger.info(`API Gateway running on port ${PORT}`);
   
@@ -183,7 +183,7 @@ app.listen(PORT, async () => {
   }
 });
 
-// Graceful shutdown
+
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received. Shutting down gracefully...');
   try {

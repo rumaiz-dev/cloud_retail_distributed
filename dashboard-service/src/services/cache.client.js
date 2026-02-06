@@ -13,7 +13,7 @@ class CacheClient {
     const redisHost = process.env.REDIS_HOST;
     const redisPort = process.env.REDIS_PORT;
 
-    // If Redis is not configured, skip connection
+    
     if (!redisHost || !redisPort || redisHost.trim() === '' || redisPort.trim() === '') {
       logger.info('Redis not configured, caching disabled');
       this.isConfigured = false;

@@ -14,7 +14,7 @@ class HttpClient {
       }
     });
 
-    // Add request interceptor for logging and tracing
+    
     this.client.interceptors.request.use(
       (config) => {
         const requestId = uuidv4();
@@ -32,7 +32,7 @@ class HttpClient {
       }
     );
 
-    // Add response interceptor for logging
+    
     this.client.interceptors.response.use(
       (response) => {
         logger.debug(`[${this.serviceName}] Response:`, {

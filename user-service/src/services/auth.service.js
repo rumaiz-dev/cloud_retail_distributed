@@ -12,7 +12,7 @@ class AuthService {
   async register(userData) {
     const { email, password, firstName, lastName, role } = userData;
 
-    // Check if user already exists
+    
     const existingUser = await userRepository.findByEmail(email);
     if (existingUser) {
       const error = new Error('User already exists');
@@ -20,7 +20,7 @@ class AuthService {
       throw error;
     }
 
-    // Create user
+    
     const user = await userRepository.create({
       email,
       password,
@@ -29,7 +29,7 @@ class AuthService {
       role: role || 'customer'
     });
 
-    // Publish registration event
+    
     publishEvent('user-events', 'user.registered', {
       event: 'USER_REGISTERED',
       userId: user.id,
@@ -39,7 +39,7 @@ class AuthService {
 
     logger.info(`User registered: ${user.email}`);
 
-    // Return user without password
+    
     return {
       id: user.id,
       email: user.email,
@@ -58,7 +58,7 @@ class AuthService {
    * @returns {Promise<Object>}
    */
   async login(email, password) {
-    // Find user
+    
     const user = await userRepository.findByEmail(email);
     if (!user) {
       const error = new Error('Invalid credentials');
@@ -66,14 +66,14 @@ class AuthService {
       throw error;
     }
 
-    // Check if user is active
+    
     if (!user.isActive) {
       const error = new Error('Account is deactivated');
       error.statusCode = 401;
       throw error;
     }
 
-    // Verify password
+    
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
       const error = new Error('Invalid credentials');
@@ -81,13 +81,13 @@ class AuthService {
       throw error;
     }
 
-    // Update last login
+    
     await userRepository.updateLastLogin(user.id);
 
-    // Generate JWT
+    
     const token = this.generateToken(user);
 
-    // Publish login event
+    
     publishEvent('auth-events', 'auth.login', {
       event: 'USER_LOGGED_IN',
       userId: user.id,
@@ -168,7 +168,7 @@ class AuthService {
    * @returns {Promise<Object>}
    */
   async updateProfile(userId, updateData) {
-    // Remove password from update data if present
+    
     delete updateData.password;
     delete updateData.email;
     delete updateData.role;

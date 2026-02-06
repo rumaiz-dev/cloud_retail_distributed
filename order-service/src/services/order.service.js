@@ -12,7 +12,7 @@ class OrderService {
     const transaction = await sequelize.transaction();
 
     try {
-      // Calculate total
+      
       const totalAmount = this.calculateTotal(items);
 
       // Create order
@@ -24,7 +24,7 @@ class OrderService {
         notes: orderData.notes
       }, { transaction });
 
-      // Create order items
+      
       const orderItems = items.map(item => ({
         orderId: order.id,
         productId: item.productId,
@@ -39,7 +39,7 @@ class OrderService {
 
       await transaction.commit();
 
-      // Publish order created event (Start Saga)
+      
       this.publishOrderEvent('order.created', {
         event: 'ORDER_CREATED',
         orderId: order.id,
@@ -69,7 +69,7 @@ class OrderService {
       return null;
     }
 
-    // Check ownership if userId provided
+    
     if (userId && order.userId !== userId) {
       return null;
     }
@@ -111,7 +111,7 @@ class OrderService {
 
     await orderRepository.updateStatus(id, 'cancelled');
 
-    // Publish cancellation event
+    
     this.publishOrderEvent('order.cancelled', {
       event: 'ORDER_CANCELLED',
       orderId: order.id,
@@ -141,7 +141,7 @@ class OrderService {
 
     const { oldStatus } = await orderRepository.updateStatus(id, status);
 
-    // Publish status update event
+    
     this.publishOrderEvent('order.status_updated', {
       event: 'ORDER_STATUS_UPDATED',
       orderId: order.id,

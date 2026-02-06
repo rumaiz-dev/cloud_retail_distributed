@@ -2,7 +2,7 @@ const { Sequelize } = require('sequelize');
 const amqp = require('amqplib');
 const logger = require('../utils/logger');
 
-// PostgreSQL connection via Sequelize
+
 const sequelize = new Sequelize(
   process.env.DB_NAME || 'cloudretail',
   process.env.DB_USER || 'cloudretail',
@@ -15,7 +15,7 @@ const sequelize = new Sequelize(
   }
 );
 
-// RabbitMQ connection with reconnect logic
+
 let channel = null;
 const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://admin:admin123@rabbitmq';
 const ORDER_EXCHANGE = 'order-events';
@@ -26,10 +26,10 @@ const connectRabbitMQ = async () => {
     const connection = await amqp.connect(RABBITMQ_URL);
     channel = await connection.createChannel();
 
-    // Declare order events exchange
+    
     await channel.assertExchange(ORDER_EXCHANGE, 'topic', { durable: true });
 
-    // Declare queue for Saga pattern
+    
     await channel.assertQueue(SAGA_QUEUE, { durable: true });
     await channel.bindQueue(SAGA_QUEUE, ORDER_EXCHANGE, 'order.*');
 
@@ -41,7 +41,7 @@ const connectRabbitMQ = async () => {
   }
 };
 
-// Publish event to RabbitMQ
+
 const publishEvent = (routingKey, event) => {
   try {
     if (channel) {
@@ -56,10 +56,10 @@ const publishEvent = (routingKey, event) => {
   }
 };
 
-// Get RabbitMQ channel
+
 const getChannel = () => channel;
 
-// Get RabbitMQ URL (for external use)
+
 const getRabbitMQUrl = () => RABBITMQ_URL;
 
 module.exports = {

@@ -11,18 +11,18 @@ const logger = require('./utils/logger');
 const app = express();
 const PORT = process.env.PORT || 3003;
 
-// Middleware
+
 app.use(helmet());
 app.use(express.json());
 
-// Routes
+
 app.use('/api/v1/orders', orderRoutes);
 
-// Error handling
+
 app.use(notFoundHandler);
 app.use(errorMiddleware);
 
-// Consul registration
+
 const registerWithConsul = async () => {
   const consulClient = new consul({ host: 'consul', port: 8500 });
   
@@ -40,13 +40,13 @@ const registerWithConsul = async () => {
   logger.info('Registered order-service with Consul');
 };
 
-// Saga compensation handler
+
 const handleSagaCompensation = async (msg) => {
   try {
     const event = JSON.parse(msg.content.toString());
     
     if (event.event === 'INVENTORY_CHECK_FAILED') {
-      // Compensate by cancelling the order
+      
       const { Order } = require('./models');
       await Order.update(
         { status: 'cancelled' },
@@ -64,7 +64,7 @@ const handleSagaCompensation = async (msg) => {
   }
 };
 
-// Handle inventory.reservation_confirmed event
+
 const handleInventoryReservationConfirmed = async (msg) => {
   try {
     const event = JSON.parse(msg.content.toString());
@@ -80,29 +80,29 @@ const handleInventoryReservationConfirmed = async (msg) => {
   }
 };
 
-// Initialize
+
 const init = async () => {
   try {
-    // Database
+    
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
     logger.info('Database connected');
 
-    // RabbitMQ
+    
     await connectRabbitMQ();
     
     const channel = getChannel();
     if (channel) {
-      // Start listening for Saga messages
+      
       channel.consume(SAGA_QUEUE, handleSagaCompensation);
       
-      // Listen for inventory.reservation_confirmed
+      
       await channel.assertQueue('inventory-confirmation', { durable: true });
       await channel.bindQueue('inventory-confirmation', 'inventory-events', 'stock.reservation_confirmed');
       channel.consume('inventory-confirmation', handleInventoryReservationConfirmed);
     }
 
-    // Start server
+    
     app.listen(PORT, async () => {
       logger.info(`Order service running on port ${PORT}`);
       await registerWithConsul();
@@ -113,7 +113,7 @@ const init = async () => {
   }
 };
 
-// Graceful shutdown
+
 process.on('SIGTERM', async () => {
   logger.info('Shutting down order service...');
   await sequelize.close();
@@ -124,10 +124,10 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-// Export for testing
+
 module.exports = { app, init };
 
-// Start if run directly
+
 if (require.main === module) {
   init();
 }

@@ -17,19 +17,19 @@ const sequelize = new Sequelize(
 let channel = null;
 const QUEUE_NAME = 'inventory-order-events';
 
-// RabbitMQ connection
+
 const connectRabbitMQ = async () => {
   try {
-    // Build RabbitMQ URL with credentials from environment
+    
     const rabbitmqUrl = process.env.RABBITMQ_URL || 'amqp://admin:admin123@rabbitmq';
     const connection = await amqplib.connect(rabbitmqUrl);
     channel = await connection.createChannel();
 
-    // Declare exchanges
+    
     await channel.assertExchange('inventory-events', 'topic', { durable: true });
     await channel.assertExchange('order-events', 'topic', { durable: true });
 
-    // Declare queue for order events
+    
     await channel.assertQueue(QUEUE_NAME, { durable: true });
     await channel.bindQueue(QUEUE_NAME, 'order-events', 'order.created');
     await channel.bindQueue(QUEUE_NAME, 'order-events', 'order.cancelled');
@@ -42,7 +42,7 @@ const connectRabbitMQ = async () => {
   }
 };
 
-// Publish event to RabbitMQ
+
 const publishEvent = async (exchange, routingKey, event) => {
   try {
     if (channel) {
@@ -57,10 +57,10 @@ const publishEvent = async (exchange, routingKey, event) => {
   }
 };
 
-// Get RabbitMQ channel
+
 const getChannel = () => channel;
 
-// Initialize all connections
+
 const initDatabase = async () => {
   try {
     await sequelize.authenticate();

@@ -2,7 +2,7 @@ const { Sequelize } = require('sequelize');
 const redis = require('redis');
 const amqp = require('amqplib');
 
-// PostgreSQL connection via Sequelize
+
 const sequelize = new Sequelize(
   process.env.DB_NAME || 'cloudretail',
   process.env.DB_USER || 'cloudretail',
@@ -15,7 +15,7 @@ const sequelize = new Sequelize(
   }
 );
 
-// Redis client for caching
+
 const redisClient = redis.createClient({
   url: `redis://${process.env.REDIS_HOST || 'redis'}:${process.env.REDIS_PORT || 6379}`
 });
@@ -23,7 +23,7 @@ const redisClient = redis.createClient({
 redisClient.on('error', (err) => console.error('Redis error:', err));
 redisClient.connect();
 
-// RabbitMQ connection with reconnect logic
+
 let channel = null;
 
 const connectRabbitMQ = async (logger) => {
@@ -31,7 +31,7 @@ const connectRabbitMQ = async (logger) => {
     const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://rabbitmq');
     channel = await connection.createChannel();
     
-    // Declare exchanges
+    
     await channel.assertExchange('user-events', 'topic', { durable: true });
     await channel.assertExchange('auth-events', 'topic', { durable: true });
     
@@ -44,7 +44,7 @@ const connectRabbitMQ = async (logger) => {
 
 const getRabbitChannel = () => channel;
 
-// Publish events to RabbitMQ
+
 const publishEvent = (exchange, routingKey, event, logger) => {
   if (channel) {
     channel.publish(exchange, routingKey, Buffer.from(JSON.stringify({
